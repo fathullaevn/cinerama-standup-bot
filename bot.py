@@ -973,6 +973,29 @@ async def main():
         BotCommand(command="summary", description="Standup summary (Group)")
     ])
     await bot.delete_webhook(drop_pending_updates=True)
+    
+    # Start web dashboard server
+    from aiohttp import web as aio_web
+    
+    async def handle_dashboard(request):
+        return aio_web.FileResponse('./dashboard.html')
+    
+    async def handle_api_data(request):
+        data = load_data()
+        return aio_web.json_response(data)
+    
+    app = aio_web.Application()
+    app.router.add_get('/', handle_dashboard)
+    app.router.add_get('/api/data', handle_api_data)
+    
+    port = int(os.getenv('PORT', 8080))
+    runner = aio_web.AppRunner(app)
+    await runner.setup()
+    site = aio_web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    logging.info(f"Dashboard running on port {port}")
+    
+    # Start bot polling (this blocks)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":

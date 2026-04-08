@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cinerama Standup Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0e1a;
+            color: #e0e6f0;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1a1f35 0%, #0d1225 100%);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #818cf8, #6366f1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header .subtitle {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+        .header .date-nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header .date-nav button {
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #818cf8;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .header .date-nav button:hover {
+            background: rgba(99, 102, 241, 0.25);
+        }
+        .header .date-nav .current-date {
+            font-size: 16px;
+            font-weight: 600;
+            color: #c7d2fe;
+            min-width: 140px;
+            text-align: center;
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            padding: 30px 40px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #141829 0%, #1a1f35 100%);
+            border: 1px solid rgba(99, 102, 241, 0.12);
+            border-radius: 16px;
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+        }
+        .stat-card.total::before { background: linear-gradient(90deg, #6366f1, #818cf8); }
+        .stat-card.submitted::before { background: linear-gradient(90deg, #10b981, #34d399); }
+        .stat-card.missing::before { background: linear-gradient(90deg, #f43f5e, #fb7185); }
+        .stat-card.rate::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        
+        .stat-card .stat-icon {
+            font-size: 28px;
+            margin-bottom: 12px;
+        }
+        .stat-card .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .stat-card.total .stat-value { color: #818cf8; }
+        .stat-card.submitted .stat-value { color: #34d399; }
+        .stat-card.missing .stat-value { color: #fb7185; }
+        .stat-card.rate .stat-value { color: #fbbf24; }
+        
+        .stat-card .stat-label {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 6px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Main content */
+        .content {
+            padding: 0 40px 40px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+        
+        .panel {
+            background: linear-gradient(135deg, #141829 0%, #1a1f35 100%);
+            border: 1px solid rgba(99, 102, 241, 0.12);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .panel-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .panel-body {
+            padding: 8px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .panel-body::-webkit-scrollbar { width: 4px; }
+        .panel-body::-webkit-scrollbar-thumb { background: #2d3555; border-radius: 4px; }
+
+        /* Employee rows */
+        .emp-row {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px;
+            border-radius: 10px;
+            transition: background 0.15s;
+            gap: 14px;
+        }
+        .emp-row:hover {
+            background: rgba(99, 102, 241, 0.06);
+        }
+        .emp-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .emp-avatar.submitted {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+        }
+        .emp-avatar.missing {
+            background: rgba(244, 63, 94, 0.15);
+            color: #fb7185;
+        }
+        .emp-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .emp-name {
+            font-weight: 600;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .emp-role {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+        .emp-time {
+            font-size: 12px;
+            font-weight: 500;
+            padding: 4px 10px;
+            border-radius: 6px;
+            flex-shrink: 0;
+        }
+        .emp-time.submitted {
+            background: rgba(16, 185, 129, 0.12);
+            color: #34d399;
+        }
+        .emp-time.missing {
+            background: rgba(244, 63, 94, 0.12);
+            color: #fb7185;
+        }
+        .emp-status-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        /* Report detail */
+        .report-detail {
+            padding: 14px 16px;
+            border-radius: 10px;
+            margin-bottom: 4px;
+            transition: background 0.15s;
+        }
+        .report-detail:hover {
+            background: rgba(99, 102, 241, 0.06);
+        }
+        .report-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .report-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .report-time {
+            font-size: 11px;
+            color: #64748b;
+        }
+        .report-text {
+            font-size: 13px;
+            line-height: 1.6;
+            color: #94a3b8;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .report-text a {
+            color: #818cf8;
+            text-decoration: none;
+        }
+        
+        /* History panel - full width */
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            margin: 0 40px 20px;
+            background: rgba(99, 102, 241, 0.1);
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            border-radius: 10px;
+            background: linear-gradient(90deg, #6366f1, #34d399);
+            transition: width 0.6s ease;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #64748b;
+        }
+        .loading .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(99, 102, 241, 0.2);
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #475569;
+        }
+        .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .content { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .header, .stats-grid, .content { padding-left: 20px; padding-right: 20px; }
+            .progress-bar { margin-left: 20px; margin-right: 20px; }
+        }
+        @media (max-width: 500px) {
+            .stats-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>🎬 Cinerama Standup</h1>
+            <div class="subtitle">Daily Standup Dashboard</div>
+        </div>
+        <div class="date-nav">
+            <button onclick="changeDate(-1)">← Prev</button>
+            <span class="current-date" id="currentDate"></span>
+            <button onclick="changeDate(1)">Next →</button>
+        </div>
+    </div>
+
+    <div id="app">
+        <div class="loading">
+            <div class="spinner"></div>
+            Loading data...
+        </div>
+    </div>
+
+    <script>
+        let allData = {};
+        let employees = {};
+        let currentDate = new Date();
+
+        // Format date as YYYY-MM-DD
+        function fmt(d) {
+            return d.toISOString().split('T')[0];
+        }
+
+        function formatDisplayDate(dateStr) {
+            const d = new Date(dateStr + 'T00:00:00');
+            const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`;
+        }
+
+        function changeDate(delta) {
+            currentDate.setDate(currentDate.getDate() + delta);
+            render();
+        }
+
+        function stripHtml(html) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            return tmp.textContent || tmp.innerText || '';
+        }
+
+        function getInitials(name) {
+            return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+        }
+
+        function render() {
+            const dateStr = fmt(currentDate);
+            document.getElementById('currentDate').textContent = formatDisplayDate(dateStr);
+
+            const dayData = allData[dateStr] || {};
+            const replies = dayData.replies || {};
+            
+            const empList = Object.entries(employees);
+            const totalEmps = empList.length;
+
+            // Build submitted map by username
+            const submittedByUsername = {};
+            for (const [uid, reply] of Object.entries(replies)) {
+                const uname = (reply.username || '').toLowerCase();
+                submittedByUsername[uname] = { ...reply, uid };
+            }
+
+            const submitted = [];
+            const missing = [];
+            for (const [username, role] of empList) {
+                const reply = submittedByUsername[username.toLowerCase()];
+                if (reply) {
+                    submitted.push({ username, role, ...reply });
+                } else {
+                    missing.push({ username, role });
+                }
+            }
+
+            const rate = totalEmps > 0 ? Math.round((submitted.length / totalEmps) * 100) : 0;
+
+            let html = `
+                <div class="stats-grid">
+                    <div class="stat-card total">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-value">${totalEmps}</div>
+                        <div class="stat-label">Total Employees</div>
+                    </div>
+                    <div class="stat-card submitted">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-value">${submitted.length}</div>
+                        <div class="stat-label">Submitted</div>
+                    </div>
+                    <div class="stat-card missing">
+                        <div class="stat-icon">⏳</div>
+                        <div class="stat-value">${missing.length}</div>
+                        <div class="stat-label">Missing</div>
+                    </div>
+                    <div class="stat-card rate">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-value">${rate}%</div>
+                        <div class="stat-label">Completion Rate</div>
+                    </div>
+                </div>
+
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${rate}%"></div>
+                </div>
+
+                <div class="content">
+                    <div class="panel">
+                        <div class="panel-header">
+                            ✅ Submitted (${submitted.length})
+                        </div>
+                        <div class="panel-body">
+                            ${submitted.length === 0 ? '<div class="empty-state"><div class="icon">📭</div>No reports yet</div>' : ''}
+                            ${submitted.sort((a,b) => (a.time||'').localeCompare(b.time||'')).map(emp => `
+                                <div class="emp-row">
+                                    <div class="emp-avatar submitted">${getInitials(emp.name || emp.username)}</div>
+                                    <div class="emp-info">
+                                        <div class="emp-name">${emp.name || emp.username}</div>
+                                        <div class="emp-role">@${emp.username} · ${emp.role}</div>
+                                    </div>
+                                    <span class="emp-time submitted">${(emp.time || '').replace(' (edited)', '')}</span>
+                                    <span class="emp-status-icon">✅</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            ⏳ Missing (${missing.length})
+                        </div>
+                        <div class="panel-body">
+                            ${missing.length === 0 ? '<div class="empty-state"><div class="icon">🎉</div>Everyone submitted!</div>' : ''}
+                            ${missing.map(emp => `
+                                <div class="emp-row">
+                                    <div class="emp-avatar missing">${getInitials(emp.username)}</div>
+                                    <div class="emp-info">
+                                        <div class="emp-name">@${emp.username}</div>
+                                        <div class="emp-role">${emp.role}</div>
+                                    </div>
+                                    <span class="emp-time missing">Pending</span>
+                                    <span class="emp-status-icon">⏳</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="panel full-width">
+                        <div class="panel-header">
+                            📝 Reports
+                        </div>
+                        <div class="panel-body">
+                            ${submitted.length === 0 ? '<div class="empty-state"><div class="icon">📋</div>No reports for this date</div>' : ''}
+                            ${submitted.map(emp => `
+                                <div class="report-detail">
+                                    <div class="report-header">
+                                        <span class="report-name">${emp.name || emp.username} <span style="color:#64748b;font-weight:400">(@${emp.username})</span></span>
+                                        <span class="report-time">${emp.time || ''}</span>
+                                    </div>
+                                    <div class="report-text">${emp.text || ''}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('app').innerHTML = html;
+        }
+
+        // Fetch data
+        fetch('/api/data')
+            .then(r => r.json())
+            .then(data => {
+                allData = data;
+                employees = data.employees || {};
+                render();
+            })
+            .catch(err => {
+                document.getElementById('app').innerHTML = `
+                    <div class="loading">
+                        <div style="font-size:40px;margin-bottom:16px">⚠️</div>
+                        Failed to load data: ${err.message}
+                    </div>
+                `;
+            });
+
+        // Auto-refresh every 60 seconds
+        setInterval(() => {
+            fetch('/api/data')
+                .then(r => r.json())
+                .then(data => {
+                    allData = data;
+                    employees = data.employees || {};
+                    render();
+                });
+        }, 60000);
+    </script>
+</body>
+</html>
