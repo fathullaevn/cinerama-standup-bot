@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .env
 test_ai.py
+view_db.py
+migrate_to_db.py
+data.json
