@@ -502,25 +502,14 @@ async def cb_send_noon_report(callback: CallbackQuery):
 async def cb_screenshot_dashboard(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         return
-    await callback.answer("📸 Taking screenshot... Please wait ~15 sec")
-    
-    screenshot = await screenshot_grafana()
-    
-    if screenshot:
-        from aiogram.types import BufferedInputFile
-        photo = BufferedInputFile(screenshot, filename="dashboard.png")
-        for admin_id in ADMIN_IDS:
-            try:
-                await bot.send_photo(
-                    chat_id=admin_id,
-                    photo=photo,
-                    caption=f"📊 <b>Grafana Dashboard</b>\n{datetime.now().strftime('%Y-%m-%d %H:%M')}",
-                    parse_mode="HTML"
-                )
-            except Exception as e:
-                logging.error(f"Failed to send screenshot to {admin_id}: {e}")
-    else:
-        await callback.message.reply("❌ Failed to take screenshot. Check logs.")
+    await callback.answer()
+    await callback.message.reply(
+        "📸 <b>Dashboard Screenshot</b>\n\n"
+        "Grafana is on a private network. Run this on your PC:\n\n"
+        "<code>python screenshot_agent.py</code>\n\n"
+        "The screenshot will be sent to all admins automatically.",
+        parse_mode="HTML"
+    )
 
 @dp.callback_query(F.data == "history_list")
 async def cb_history_list(callback: CallbackQuery):
