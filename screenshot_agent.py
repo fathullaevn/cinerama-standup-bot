@@ -49,8 +49,9 @@ async def screenshot_grafana():
         await page.wait_for_timeout(3000)
 
         logging.info("[Grafana] Loading dashboard...")
-        await page.goto(GRAFANA_URL, wait_until="domcontentloaded", timeout=60000)
-        await page.wait_for_timeout(8000)
+        kiosk_url = GRAFANA_URL + ("&" if "?" in GRAFANA_URL else "?") + "kiosk"
+        await page.goto(kiosk_url, wait_until="domcontentloaded", timeout=60000)
+        await page.wait_for_timeout(15000)
 
         screenshot = await page.screenshot(full_page=True, type="png")
         logging.info(f"[Grafana] Captured: {len(screenshot)} bytes")
@@ -85,25 +86,24 @@ async def screenshot_superset():
         return screenshot
 
 
-async def send_photo(screenshot_bytes, caption):
-    """Send screenshot to all admins."""
+async def send_photo(screenshot_bytes, caption, admin_id):
+    """Send screenshot to the admin who requested it."""
     import aiohttp
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
 
-    for admin_id in ADMIN_IDS:
-        form = aiohttp.FormData()
-        form.add_field("chat_id", admin_id)
-        form.add_field("caption", caption)
-        form.add_field("parse_mode", "HTML")
-        form.add_field("photo", screenshot_bytes, filename="dashboard.png", content_type="image/png")
+    form = aiohttp.FormData()
+    form.add_field("chat_id", admin_id)
+    form.add_field("caption", caption)
+    form.add_field("parse_mode", "HTML")
+    form.add_field("photo", screenshot_bytes, filename="dashboard.png", content_type="image/png")
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=form) as resp:
-                if resp.status == 200:
-                    logging.info(f"✅ Sent to admin {admin_id}")
-                else:
-                    text = await resp.text()
-                    logging.error(f"❌ Failed for {admin_id}: {text}")
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, data=form) as resp:
+            if resp.status == 200:
+                logging.info(f"✅ Sent to admin {admin_id}")
+            else:
+                text = await resp.text()
+                logging.error(f"❌ Failed for {admin_id}: {text}")
 
 
 async def check_for_request():
@@ -130,15 +130,15 @@ async def clear_request():
         pass
 
 
-async def process_request(target):
-    """Process a screenshot request."""
+async def process_request(target, admin_id):
+    """Process a screenshot request — send only to the requesting admin."""
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
 
     if target in ("grafana", "both"):
         try:
             img = await screenshot_grafana()
             if img:
-                await send_photo(img, f"📊 <b>Grafana — Tariffs</b>\n{now}")
+                await send_photo(img, f"📊 <b>Grafana — Tariffs</b>\n{now}", admin_id)
         except Exception as e:
             logging.error(f"Grafana failed: {e}")
 
@@ -146,7 +146,7 @@ async def process_request(target):
         try:
             img = await screenshot_superset()
             if img:
-                await send_photo(img, f"📊 <b>Superset — Daily Results</b>\n{now}")
+                await send_photo(img, f"📊 <b>Superset — Daily Results</b>\n{now}", admin_id)
         except Exception as e:
             logging.error(f"Superset failed: {e}")
 
@@ -158,11 +158,20 @@ async def main():
 
     while True:
         try:
-            target = await check_for_request()
-            if target and target is not False:
-                logging.info(f"📸 Request: {target}")
+            requested = await check_for_request()
+            if requested and requested is not False:
+                # Parse request: dict {target, admin_id} or legacy string
+                if isinstance(requested, dict):
+                    target = requested.get("target", "both")
+                    admin_id = requested.get("admin_id", ADMIN_IDS[0] if ADMIN_IDS else None)
+                else:
+                    target = requested
+                    admin_id = ADMIN_IDS[0] if ADMIN_IDS else None
+
+                logging.info(f"📸 Request: {target} from admin {admin_id}")
                 await clear_request()
-                await process_request(target)
+                if admin_id:
+                    await process_request(target, admin_id)
                 logging.info("✅ Done! Waiting for next request...\n")
         except KeyboardInterrupt:
             break

@@ -505,7 +505,7 @@ async def cb_screenshot_dashboard(callback: CallbackQuery):
         return
     target = callback.data.replace("screenshot_", "")  # grafana, superset, or both
     data = load_data()
-    data["screenshot_requested"] = target
+    data["screenshot_requested"] = {"target": target, "admin_id": str(callback.from_user.id)}
     save_data(data)
     labels = {"grafana": "Grafana", "superset": "Superset", "both": "Grafana + Superset"}
     await callback.answer(f"📸 {labels.get(target, target)} requested!")
