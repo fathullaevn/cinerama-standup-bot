@@ -32,6 +32,10 @@ def is_admin(user_id) -> bool:
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
+GRAFANA_URL = os.getenv("GRAFANA_URL", "https://bi.cinerama.uz/d/b4233477-01c3-4642-9c4e-1077f48bb7d1/tariffs?orgId=1&from=now%2FM&to=now%2FM&timezone=browser&var-tariff=$__all")
+GRAFANA_USER = os.getenv("GRAFANA_USER", "")
+GRAFANA_PASS = os.getenv("GRAFANA_PASS", "")
+
 if not BOT_TOKEN or not CHAT_ID:
     print("Please set BOT_TOKEN and CHAT_ID in the .env file.")
     exit(1)
@@ -209,11 +213,54 @@ async def validate_standup_with_ai(text):
         logging.warning(f"AI validation failed: {e}")
         return None  # Allow standup if AI is unavailable
 
+async def screenshot_grafana():
+    """Take a screenshot of the Grafana dashboard using Playwright."""
+    if not GRAFANA_USER or not GRAFANA_PASS:
+        logging.warning("GRAFANA_USER or GRAFANA_PASS not set")
+        return None
+    
+    try:
+        from playwright.async_api import async_playwright
+        
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                viewport={"width": 1600, "height": 900},
+                ignore_https_errors=True
+            )
+            page = await context.new_page()
+            
+            # Login to Grafana
+            login_url = GRAFANA_URL.split('/d/')[0] + '/login'
+            await page.goto(login_url, wait_until="networkidle", timeout=30000)
+            
+            await page.fill('input[name="user"]', GRAFANA_USER)
+            await page.fill('input[name="password"]', GRAFANA_PASS)
+            await page.click('button[type="submit"]')
+            
+            # Wait for login to complete
+            await page.wait_for_timeout(3000)
+            
+            # Navigate to dashboard
+            await page.goto(GRAFANA_URL, wait_until="networkidle", timeout=60000)
+            
+            # Wait for charts to render
+            await page.wait_for_timeout(8000)
+            
+            # Take screenshot
+            screenshot = await page.screenshot(full_page=True, type="png")
+            
+            await browser.close()
+            return screenshot
+    except Exception as e:
+        logging.error(f"Screenshot failed: {e}")
+        return None
+
 admin_keyboard = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(text="⏸ Stop Pinging", callback_data="stop_ping"), InlineKeyboardButton(text="▶️ Start Pinging", callback_data="start_ping")],
         [InlineKeyboardButton(text="📢 Ping Now", callback_data="ping_now"), InlineKeyboardButton(text="📋 Send Summary", callback_data="send_summary_now")],
-        [InlineKeyboardButton(text="🚨 Send 12:00 Report", callback_data="send_noon_report")],
+        [InlineKeyboardButton(text="🚨 Send 12:00 Report", callback_data="send_noon_report"), InlineKeyboardButton(text="📸 Dashboard", callback_data="screenshot_dashboard")],
         [InlineKeyboardButton(text="👥 Employee List", callback_data="list_emp"), InlineKeyboardButton(text="➕ Add Employee", callback_data="add_emp")],
         [InlineKeyboardButton(text="➖ Remove Employee", callback_data="rem_emp"), InlineKeyboardButton(text="📁 Report History", callback_data="history_list")],
         [InlineKeyboardButton(text="✏️ Edit Reports", callback_data="edit_list"), InlineKeyboardButton(text="🗑 Clear Report", callback_data="clear_list")]
@@ -450,6 +497,30 @@ async def cb_send_noon_report(callback: CallbackQuery):
         return
     await callback.answer("🚨 Sending 12:00 report to admins...")
     await report_missing_standups_at_noon(force=True)
+
+@dp.callback_query(F.data == "screenshot_dashboard")
+async def cb_screenshot_dashboard(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer("📸 Taking screenshot... Please wait ~15 sec")
+    
+    screenshot = await screenshot_grafana()
+    
+    if screenshot:
+        from aiogram.types import BufferedInputFile
+        photo = BufferedInputFile(screenshot, filename="dashboard.png")
+        for admin_id in ADMIN_IDS:
+            try:
+                await bot.send_photo(
+                    chat_id=admin_id,
+                    photo=photo,
+                    caption=f"📊 <b>Grafana Dashboard</b>\n{datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                logging.error(f"Failed to send screenshot to {admin_id}: {e}")
+    else:
+        await callback.message.reply("❌ Failed to take screenshot. Check logs.")
 
 @dp.callback_query(F.data == "history_list")
 async def cb_history_list(callback: CallbackQuery):
