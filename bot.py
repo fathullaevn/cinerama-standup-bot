@@ -502,14 +502,11 @@ async def cb_send_noon_report(callback: CallbackQuery):
 async def cb_screenshot_dashboard(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         return
-    await callback.answer()
-    await callback.message.reply(
-        "📸 <b>Dashboard Screenshot</b>\n\n"
-        "Grafana is on a private network. Run this on your PC:\n\n"
-        "<code>python screenshot_agent.py</code>\n\n"
-        "The screenshot will be sent to all admins automatically.",
-        parse_mode="HTML"
-    )
+    data = load_data()
+    data["screenshot_requested"] = True
+    save_data(data)
+    await callback.answer("📸 Screenshot requested!")
+    await callback.message.reply("📸 Screenshot requested! Waiting for local agent to capture...")
 
 @dp.callback_query(F.data == "history_list")
 async def cb_history_list(callback: CallbackQuery):
@@ -1047,6 +1044,19 @@ async def main():
     app = aio_web.Application()
     app.router.add_get('/', handle_dashboard)
     app.router.add_get('/api/data', handle_api_data)
+    
+    async def handle_screenshot_check(request):
+        data = load_data()
+        return aio_web.json_response({"requested": data.get("screenshot_requested", False)})
+    
+    async def handle_screenshot_clear(request):
+        data = load_data()
+        data["screenshot_requested"] = False
+        save_data(data)
+        return aio_web.json_response({"ok": True})
+    
+    app.router.add_get('/api/screenshot_check', handle_screenshot_check)
+    app.router.add_post('/api/screenshot_clear', handle_screenshot_clear)
     
     port = int(os.getenv('PORT', 8080))
     runner = aio_web.AppRunner(app)
