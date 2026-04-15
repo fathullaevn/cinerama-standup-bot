@@ -260,7 +260,8 @@ admin_keyboard = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(text="⏸ Stop Pinging", callback_data="stop_ping"), InlineKeyboardButton(text="▶️ Start Pinging", callback_data="start_ping")],
         [InlineKeyboardButton(text="📢 Ping Now", callback_data="ping_now"), InlineKeyboardButton(text="📋 Send Summary", callback_data="send_summary_now")],
-        [InlineKeyboardButton(text="🚨 Send 12:00 Report", callback_data="send_noon_report"), InlineKeyboardButton(text="📸 Dashboard", callback_data="screenshot_dashboard")],
+        [InlineKeyboardButton(text="🚨 12:00 Report", callback_data="send_noon_report")],
+        [InlineKeyboardButton(text="📸 Grafana", callback_data="screenshot_grafana"), InlineKeyboardButton(text="📸 Superset", callback_data="screenshot_superset"), InlineKeyboardButton(text="📸 Both", callback_data="screenshot_both")],
         [InlineKeyboardButton(text="👥 Employee List", callback_data="list_emp"), InlineKeyboardButton(text="➕ Add Employee", callback_data="add_emp")],
         [InlineKeyboardButton(text="➖ Remove Employee", callback_data="rem_emp"), InlineKeyboardButton(text="📁 Report History", callback_data="history_list")],
         [InlineKeyboardButton(text="✏️ Edit Reports", callback_data="edit_list"), InlineKeyboardButton(text="🗑 Clear Report", callback_data="clear_list")]
@@ -498,15 +499,17 @@ async def cb_send_noon_report(callback: CallbackQuery):
     await callback.answer("🚨 Sending 12:00 report to admins...")
     await report_missing_standups_at_noon(force=True)
 
-@dp.callback_query(F.data == "screenshot_dashboard")
+@dp.callback_query(F.data.startswith("screenshot_"))
 async def cb_screenshot_dashboard(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         return
+    target = callback.data.replace("screenshot_", "")  # grafana, superset, or both
     data = load_data()
-    data["screenshot_requested"] = True
+    data["screenshot_requested"] = target
     save_data(data)
-    await callback.answer("📸 Screenshot requested!")
-    await callback.message.reply("📸 Screenshot requested! Waiting for local agent to capture...")
+    labels = {"grafana": "Grafana", "superset": "Superset", "both": "Grafana + Superset"}
+    await callback.answer(f"📸 {labels.get(target, target)} requested!")
+    await callback.message.reply(f"📸 {labels.get(target, target)} screenshot requested! ~15 sec...")
 
 @dp.callback_query(F.data == "history_list")
 async def cb_history_list(callback: CallbackQuery):
