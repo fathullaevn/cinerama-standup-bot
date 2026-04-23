@@ -47,81 +47,19 @@ dp = Dispatcher()
 scheduler = AsyncIOScheduler(timezone="Asia/Tashkent")
 
 DATA_FILE = Path("data.json")
-DATABASE_URL = os.getenv("DATABASE_URL", "")
 
-# PostgreSQL setup
-if DATABASE_URL:
-    import psycopg2
-    import psycopg2.extras
-    
-    # Fix Heroku's postgres:// -> postgresql://
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    
-    def _get_db_conn():
-        return psycopg2.connect(DATABASE_URL, sslmode="require")
-    
-    def _init_db():
-        conn = _get_db_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS bot_data (
-                id INTEGER PRIMARY KEY DEFAULT 1,
-                data JSONB NOT NULL DEFAULT '{}'::jsonb
-            )
-        """)
-        cur.execute("INSERT INTO bot_data (id, data) VALUES (1, '{}'::jsonb) ON CONFLICT (id) DO NOTHING")
-        conn.commit()
-        cur.close()
-        conn.close()
-    
+def load_data():
+    if not DATA_FILE.exists():
+        return {}
     try:
-        _init_db()
-        logging.info("PostgreSQL database initialized.")
-    except Exception as e:
-        logging.error(f"Failed to init PostgreSQL: {e}")
-    
-    def load_data():
-        try:
-            conn = _get_db_conn()
-            cur = conn.cursor()
-            cur.execute("SELECT data FROM bot_data WHERE id = 1")
-            row = cur.fetchone()
-            cur.close()
-            conn.close()
-            return row[0] if row else {}
-        except Exception as e:
-            logging.error(f"DB load error: {e}")
-            return {}
-    
-    def save_data(data):
-        try:
-            conn = _get_db_conn()
-            cur = conn.cursor()
-            cur.execute(
-                "UPDATE bot_data SET data = %s WHERE id = 1",
-                (psycopg2.extras.Json(data),)
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
-        except Exception as e:
-            logging.error(f"DB save error: {e}")
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
-else:
-    # Fallback to file-based storage for local development
-    def load_data():
-        if not DATA_FILE.exists():
-            return {}
-        try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-
-    def save_data(data):
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+def save_data(data):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
 def get_today_str():
     return datetime.now().strftime("%Y-%m-%d")

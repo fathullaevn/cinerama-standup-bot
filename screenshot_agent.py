@@ -25,7 +25,7 @@ SUPERSET_URL = os.getenv("SUPERSET_URL", "https://ba.cinerama.uz/superset/dashbo
 SUPERSET_USER = os.getenv("SUPERSET_USER", "nuriddin")
 SUPERSET_PASS = os.getenv("SUPERSET_PASS", "nuriddin")
 
-BOT_API_URL = "https://cinerama-standup-bot-fa4c6c6e5bd5.herokuapp.com"
+BOT_API_URL = os.getenv("BOT_API_URL", "http://127.0.0.1:8080")
 POLL_INTERVAL = 5
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
