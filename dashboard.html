@@ -74,6 +74,38 @@
             text-align: center;
         }
 
+        .header .date-nav .group-selector {
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #c7d2fe;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-right: 15px;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.2s;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23c7d2fe%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px top 50%;
+            background-size: 10px auto;
+            padding-right: 32px;
+        }
+
+        .header .date-nav .group-selector:hover {
+            background: rgba(99, 102, 241, 0.25);
+        }
+
+        .header .date-nav .group-selector option {
+            background-color: #1a1f35;
+            color: #c7d2fe;
+            padding: 10px;
+        }
+
         /* Stats */
         .stats-grid {
             display: grid;
@@ -419,11 +451,11 @@
     </div>
 
     <script>
-        let allData = {};
-        let employees = {};
+        let rawData = {};
+        let currentGroup = "group1";
         let currentDate = new Date();
+        let groupNames = {};
 
-        // Format date as YYYY-MM-DD
         function fmt(d) {
             return d.toISOString().split('T')[0];
         }
@@ -440,41 +472,69 @@
             render();
         }
 
-        function stripHtml(html) {
-            const tmp = document.createElement('div');
-            tmp.innerHTML = html;
-            return tmp.textContent || tmp.innerText || '';
+        function changeGroup(gkey) {
+            currentGroup = gkey;
+            render();
         }
 
         function getInitials(name) {
-            return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+            return name ? name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : '?';
         }
 
         function render() {
             const dateStr = fmt(currentDate);
             document.getElementById('currentDate').textContent = formatDisplayDate(dateStr);
 
-            const dayData = allData[dateStr] || {};
+            // Build group selector if not exists
+            if (!document.getElementById('groupSelector')) {
+                const nav = document.querySelector('.date-nav');
+                const sel = document.createElement('select');
+                sel.id = 'groupSelector';
+                sel.className = 'group-selector';
+                sel.onchange = (e) => changeGroup(e.target.value);
+                nav.prepend(sel);
+            }
+            const sel = document.getElementById('groupSelector');
+            if (sel.options.length === 0) {
+                for (const gkey in groupNames) {
+                    const opt = document.createElement('option');
+                    opt.value = gkey;
+                    opt.textContent = groupNames[gkey];
+                    sel.appendChild(opt);
+                }
+                sel.value = currentGroup;
+            }
+
+            const gdata = rawData[currentGroup] || {};
+            const employees = gdata.employees || {};
+            const dayData = gdata[dateStr] || {};
             const replies = dayData.replies || {};
 
             const empList = Object.entries(employees);
             const totalEmps = empList.length;
 
-            // Build submitted map by username
+            const submittedByUid = {};
             const submittedByUsername = {};
             for (const [uid, reply] of Object.entries(replies)) {
                 const uname = (reply.username || '').toLowerCase();
-                submittedByUsername[uname] = { ...reply, uid };
+                if (uname) submittedByUsername[uname] = { ...reply, uid };
+                submittedByUid[uid] = { ...reply, uid };
             }
 
             const submitted = [];
             const missing = [];
-            for (const [username, role] of empList) {
-                const reply = submittedByUsername[username.toLowerCase()];
+            const userMap = gdata.user_map || {};
+
+            for (const [empKey, role] of empList) {
+                const uid = String(userMap[empKey] || '');
+                const uname = empKey.toLowerCase();
+
+                let reply = submittedByUid[uid] || submittedByUid[empKey] || submittedByUsername[uname];
+
                 if (reply) {
-                    submitted.push({ username, role, ...reply });
+                    submitted.push({ username: empKey, role, ...reply });
                 } else {
-                    missing.push({ username, role });
+                    missing.push({ username: empKey, role });
                 }
             }
 
@@ -510,17 +570,15 @@
 
                 <div class="content">
                     <div class="panel">
-                        <div class="panel-header">
-                            ✅ Submitted (${submitted.length})
-                        </div>
+                        <div class="panel-header">✅ Submitted (${submitted.length})</div>
                         <div class="panel-body">
                             ${submitted.length === 0 ? '<div class="empty-state"><div class="icon">📭</div>No reports yet</div>' : ''}
                             ${submitted.sort((a, b) => (a.time || '').localeCompare(b.time || '')).map(emp => `
                                 <div class="emp-row">
-                                    <div class="emp-avatar submitted">${getInitials(emp.name || emp.username)}</div>
+                                    <div class="emp-avatar submitted">${getInitials(emp.role || emp.name || emp.username)}</div>
                                     <div class="emp-info">
-                                        <div class="emp-name">${emp.name || emp.username}</div>
-                                        <div class="emp-role">@${emp.username} · ${emp.role}</div>
+                                        <div class="emp-name">${emp.role || emp.name || emp.username}</div>
+                                        <div class="emp-role">${emp.username && !String(emp.username).match(/^\d+$/) && emp.username !== 'null' ? '@' + emp.username : (emp.name && emp.name !== emp.role ? emp.name : 'No username')}</div>
                                     </div>
                                     <span class="emp-time submitted">${(emp.time || '').replace(' (edited)', '')}</span>
                                     <span class="emp-status-icon">✅</span>
@@ -530,17 +588,15 @@
                     </div>
 
                     <div class="panel">
-                        <div class="panel-header">
-                            ⏳ Missing (${missing.length})
-                        </div>
+                        <div class="panel-header">⏳ Missing (${missing.length})</div>
                         <div class="panel-body">
-                            ${missing.length === 0 ? '<div class="empty-state"><div class="icon">🎉</div>Everyone submitted!</div>' : ''}
+                            ${missing.length === 0 ? (totalEmps > 0 ? '<div class="empty-state"><div class="icon">🎉</div>Everyone submitted!</div>' : '<div class="empty-state">No employees in this group</div>') : ''}
                             ${missing.map(emp => `
                                 <div class="emp-row">
-                                    <div class="emp-avatar missing">${getInitials(emp.username)}</div>
+                                    <div class="emp-avatar missing">${getInitials(emp.role || emp.username)}</div>
                                     <div class="emp-info">
-                                        <div class="emp-name">@${emp.username}</div>
-                                        <div class="emp-role">${emp.role}</div>
+                                        <div class="emp-name">${emp.role || emp.username}</div>
+                                        <div class="emp-role">${emp.username && !String(emp.username).match(/^\d+$/) && emp.username !== 'null' ? '@' + emp.username : 'No username'}</div>
                                     </div>
                                     <span class="emp-time missing">Pending</span>
                                     <span class="emp-status-icon">⏳</span>
@@ -550,15 +606,13 @@
                     </div>
 
                     <div class="panel full-width">
-                        <div class="panel-header">
-                            📝 Reports
-                        </div>
+                        <div class="panel-header">📝 Reports</div>
                         <div class="panel-body">
                             ${submitted.length === 0 ? '<div class="empty-state"><div class="icon">📋</div>No reports for this date</div>' : ''}
                             ${submitted.map(emp => `
                                 <div class="report-detail">
                                     <div class="report-header">
-                                        <span class="report-name">${emp.name || emp.username} <span style="color:#64748b;font-weight:400">(@${emp.username})</span></span>
+                                        <span class="report-name">${emp.role || emp.name || emp.username} <span style="color:#64748b;font-weight:400">(${emp.username && !String(emp.username).match(/^\d+$/) && emp.username !== 'null' ? '@' + emp.username : (emp.name && emp.name !== emp.role ? emp.name : '')})</span></span>
                                         <span class="report-time">${emp.time || ''}</span>
                                     </div>
                                     <div class="report-text">${emp.text || ''}</div>
@@ -572,30 +626,37 @@
             document.getElementById('app').innerHTML = html;
         }
 
-        // Fetch data
-        fetch('/api/data')
+        fetch('/api/data?t=' + new Date().getTime())
             .then(r => r.json())
             .then(data => {
-                allData = data;
-                employees = data.employees || {};
+                rawData = data;
+                groupNames = {};
+                for (const k in data) {
+                    if (k.startsWith("group")) {
+                        groupNames[k] = k;
+                    }
+                }
+                if (data.discovered_groups) {
+                    if (groupNames["group1"]) groupNames["group1"] = "Dev Team";
+                    if (groupNames["group2"]) groupNames["group2"] = "Daily Marketing";
+                    if (groupNames["group3"]) groupNames["group3"] = "Shift Leader";
+                }
+
+                if (!groupNames[currentGroup] && Object.keys(groupNames).length > 0) {
+                    currentGroup = Object.keys(groupNames)[0];
+                }
+
                 render();
             })
             .catch(err => {
-                document.getElementById('app').innerHTML = `
-                    <div class="loading">
-                        <div style="font-size:40px;margin-bottom:16px">⚠️</div>
-                        Failed to load data: ${err.message}
-                    </div>
-                `;
+                document.getElementById('app').innerHTML = `<div class="loading">⚠️ Failed to load data: ${err.message}</div>`;
             });
 
-        // Auto-refresh every 60 seconds
         setInterval(() => {
-            fetch('/api/data')
+            fetch('/api/data?t=' + new Date().getTime())
                 .then(r => r.json())
                 .then(data => {
-                    allData = data;
-                    employees = data.employees || {};
+                    rawData = data;
                     render();
                 });
         }, 60000);
